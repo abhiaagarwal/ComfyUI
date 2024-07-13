@@ -25,6 +25,7 @@ import mimetypes
 from comfy.cli_args import args
 import comfy.utils
 import comfy.model_management
+from comfy.api.typed_node import node_info
 
 from app.user_manager import UserManager
 
@@ -406,31 +407,10 @@ class PromptServer():
         async def get_prompt(request):
             return web.json_response(self.get_queue_info())
 
-        def node_info(node_class):
-            obj_class = nodes.NODE_CLASS_MAPPINGS[node_class]
-            info = {}
-            info['input'] = obj_class.INPUT_TYPES()
-            info['output'] = obj_class.RETURN_TYPES
-            info['output_is_list'] = obj_class.OUTPUT_IS_LIST if hasattr(obj_class, 'OUTPUT_IS_LIST') else [False] * len(obj_class.RETURN_TYPES)
-            info['output_name'] = obj_class.RETURN_NAMES if hasattr(obj_class, 'RETURN_NAMES') else info['output']
-            info['name'] = node_class
-            info['display_name'] = nodes.NODE_DISPLAY_NAME_MAPPINGS[node_class] if node_class in nodes.NODE_DISPLAY_NAME_MAPPINGS.keys() else node_class
-            info['description'] = obj_class.DESCRIPTION if hasattr(obj_class,'DESCRIPTION') else ''
-            info['python_module'] = getattr(obj_class, "RELATIVE_PYTHON_MODULE", "nodes")
-            info['category'] = 'sd'
-            if hasattr(obj_class, 'OUTPUT_NODE') and obj_class.OUTPUT_NODE == True:
-                info['output_node'] = True
-            else:
-                info['output_node'] = False
-
-            if hasattr(obj_class, 'CATEGORY'):
-                info['category'] = obj_class.CATEGORY
-            return info
-
         @routes.get("/object_info")
         async def get_object_info(request):
             out = {}
-            for x in nodes.NODE_CLASS_MAPPINGS:
+            for x in nodes.NODE_CLASS_MAPPINGS.keys():
                 try:
                     out[x] = node_info(x)
                 except Exception as e:

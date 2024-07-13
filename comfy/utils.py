@@ -392,7 +392,7 @@ def copy_to_param(obj, attr, value):
     prev = getattr(obj, attrs[-1])
     prev.data.copy_(value)
 
-def get_attr(obj, attr):
+def get_attr(obj: object, attr: str):
     attrs = attr.split(".")
     for name in attrs:
         obj = getattr(obj, name)

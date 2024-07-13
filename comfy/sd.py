@@ -97,7 +97,7 @@ class CLIP:
     def clip_layer(self, layer_idx):
         self.layer_idx = layer_idx
 
-    def tokenize(self, text, return_word_ids=False):
+    def tokenize(self, text: str, return_word_ids=False):
         return self.tokenizer.tokenize_with_weights(text, return_word_ids)
 
     def encode_from_tokens(self, tokens, return_pooled=False, return_dict=False):

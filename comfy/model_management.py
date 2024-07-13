@@ -1,3 +1,4 @@
+from typing import Optional
 import psutil
 import logging
 from enum import Enum
@@ -5,6 +6,9 @@ from comfy.cli_args import args
 import torch
 import sys
 import platform
+
+from comfy.model_base import BaseModel
+from comfy.model_patcher import ModelPatcher
 
 class VRAMState(Enum):
     DISABLED = 0    #No vram present: no need to move models to vram
@@ -71,7 +75,7 @@ def is_intel_xpu():
             return True
     return False
 
-def get_torch_device():
+def get_torch_device() -> torch.device:
     global directml_enabled
     global cpu_state
     if directml_enabled:
@@ -231,7 +235,7 @@ DISABLE_SMART_MEMORY = args.disable_smart_memory
 if DISABLE_SMART_MEMORY:
     logging.info("Disabling smart memory management")
 
-def get_torch_device_name(device):
+def get_torch_device_name(device: torch.device) -> str:
     if hasattr(device, 'type'):
         if device.type == "cuda":
             try:
@@ -254,7 +258,7 @@ except:
 
 current_loaded_models = []
 
-def module_size(module):
+def module_size(module: BaseModel):
     module_mem = 0
     sd = module.state_dict()
     for k in sd:
@@ -263,7 +267,7 @@ def module_size(module):
     return module_mem
 
 class LoadedModel:
-    def __init__(self, model):
+    def __init__(self, model: ModelPatcher):
         self.model = model
         self.device = model.load_device
         self.weights_loaded = False
@@ -273,13 +277,13 @@ class LoadedModel:
     def model_memory(self):
         return self.model.model_size()
 
-    def model_memory_required(self, device):
+    def model_memory_required(self, device: torch.device):
         if device == self.model.current_device:
             return 0
         else:
             return self.model_memory()
 
-    def model_load(self, lowvram_model_memory=0, force_patch_weights=False):
+    def model_load(self, lowvram_model_memory:int=0, force_patch_weights:bool=False):
         patch_model_to = self.device
 
         self.model.model_patches_to(self.device)
@@ -486,7 +490,7 @@ def cleanup_models(keep_clone_weights_loaded=False):
         x.model_unload()
         del x
 
-def dtype_size(dtype):
+def dtype_size(dtype: torch.dtype) -> int:
     dtype_size = 4
     if dtype == torch.float16 or dtype == torch.bfloat16:
         dtype_size = 2
@@ -505,7 +509,7 @@ def unet_offload_device():
     else:
         return torch.device("cpu")
 
-def unet_inital_load_device(parameters, dtype):
+def unet_inital_load_device(parameters, dtype: torch.dtype) -> torch.device:
     torch_dev = get_torch_device()
     if vram_state == VRAMState.HIGH_VRAM:
         return torch_dev
@@ -523,7 +527,7 @@ def unet_inital_load_device(parameters, dtype):
     else:
         return cpu_dev
 
-def unet_dtype(device=None, model_params=0, supported_dtypes=[torch.float16, torch.bfloat16, torch.float32]):
+def unet_dtype(device:Optional[torch.device]=None, model_params=0, supported_dtypes=[torch.float16, torch.bfloat16, torch.float32]):
     if args.bf16_unet:
         return torch.bfloat16
     if args.fp16_unet:
@@ -567,7 +571,7 @@ def text_encoder_offload_device():
     else:
         return torch.device("cpu")
 
-def text_encoder_device():
+def text_encoder_device() -> torch.device:
     if args.gpu_only:
         return get_torch_device()
     elif vram_state == VRAMState.HIGH_VRAM or vram_state == VRAMState.NORMAL_VRAM:
@@ -807,7 +811,7 @@ def is_device_mps(device):
 def is_device_cuda(device):
     return is_device_type(device, 'cuda')
 
-def should_use_fp16(device=None, model_params=0, prioritize_performance=True, manual_cast=False):
+def should_use_fp16(device: Optional[torch.device]=None, model_params=0, prioritize_performance=True, manual_cast=False):
     global directml_enabled
 
     if device is not None:

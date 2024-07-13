@@ -1,7 +1,7 @@
 import os
 import time
 import logging
-from typing import Set, List, Dict, Tuple
+from typing import Optional, Set, List, Dict, Tuple
 
 supported_pt_extensions: Set[str] = set(['.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl'])
 
@@ -201,7 +201,7 @@ def get_filename_list_(folder_name):
 
     return (sorted(list(output_list)), output_folders, time.perf_counter())
 
-def cached_filename_list_(folder_name):
+def cached_filename_list_(folder_name: str) -> Optional[str]:
     global filename_list_cache
     global folder_names_and_paths
     if folder_name not in filename_list_cache:
@@ -222,7 +222,7 @@ def cached_filename_list_(folder_name):
 
     return out
 
-def get_filename_list(folder_name):
+def get_filename_list(folder_name: str) -> List[str]:
     out = cached_filename_list_(folder_name)
     if out is None:
         out = get_filename_list_(folder_name)

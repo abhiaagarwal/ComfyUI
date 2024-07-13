@@ -1,3 +1,5 @@
+from typing import Any, Dict, Optional
+from typing_extensions import TypeAlias
 import torch
 from . import model_base
 from . import utils
@@ -9,8 +11,11 @@ class ClipTarget:
         self.tokenizer = tokenizer
         self.params = {}
 
+UNetConfig: TypeAlias = Dict[str, Any]
+StateDict: TypeAlias = Dict[str, Any]
+
 class BASE:
-    unet_config = {}
+    unet_config: UNetConfig = {}
     unet_extra_config = {
         "num_heads": -1,
         "num_head_channels": 64,
@@ -21,16 +26,16 @@ class BASE:
     clip_prefix = []
     clip_vision_prefix = None
     noise_aug_config = None
-    sampling_settings = {}
-    latent_format = latent_formats.LatentFormat
+    sampling_settings: Dict[str, Any] = {}
+    latent_format: type[latent_formats.LatentFormat] = latent_formats.LatentFormat
     vae_key_prefix = ["first_stage_model."]
     text_encoder_key_prefix = ["cond_stage_model."]
     supported_inference_dtypes = [torch.float16, torch.bfloat16, torch.float32]
 
-    manual_cast_dtype = None
+    manual_cast_dtype: Optional[torch.dtype] = None
 
     @classmethod
-    def matches(s, unet_config, state_dict=None):
+    def matches(s, unet_config: UNetConfig, state_dict: Optional[StateDict]=None):
         for k in s.unet_config:
             if k not in unet_config or s.unet_config[k] != unet_config[k]:
                 return False
@@ -40,20 +45,20 @@ class BASE:
                     return False
         return True
 
-    def model_type(self, state_dict, prefix=""):
+    def model_type(self, state_dict: StateDict, prefix:str=""):
         return model_base.ModelType.EPS
 
     def inpaint_model(self):
         return self.unet_config["in_channels"] > 4
 
-    def __init__(self, unet_config):
+    def __init__(self, unet_config: UNetConfig):
         self.unet_config = unet_config.copy()
         self.sampling_settings = self.sampling_settings.copy()
         self.latent_format = self.latent_format()
         for x in self.unet_extra_config:
             self.unet_config[x] = self.unet_extra_config[x]
 
-    def get_model(self, state_dict, prefix="", device=None):
+    def get_model(self, state_dict: StateDict, prefix:str="", device: Optional[torch.dtype]=None):
         if self.noise_aug_config is not None:
             out = model_base.SD21UNCLIP(self, self.noise_aug_config, model_type=self.model_type(state_dict, prefix), device=device)
         else:
@@ -62,34 +67,34 @@ class BASE:
             out.set_inpaint()
         return out
 
-    def process_clip_state_dict(self, state_dict):
+    def process_clip_state_dict(self, state_dict: StateDict):
         state_dict = utils.state_dict_prefix_replace(state_dict, {k: "" for k in self.text_encoder_key_prefix}, filter_keys=True)
         return state_dict
 
-    def process_unet_state_dict(self, state_dict):
+    def process_unet_state_dict(self, state_dict: StateDict):
         return state_dict
 
-    def process_vae_state_dict(self, state_dict):
+    def process_vae_state_dict(self, state_dict: StateDict):
         return state_dict
 
-    def process_clip_state_dict_for_saving(self, state_dict):
+    def process_clip_state_dict_for_saving(self, state_dict: StateDict):
         replace_prefix = {"": self.text_encoder_key_prefix[0]}
         return utils.state_dict_prefix_replace(state_dict, replace_prefix)
 
-    def process_clip_vision_state_dict_for_saving(self, state_dict):
+    def process_clip_vision_state_dict_for_saving(self, state_dict: StateDict):
         replace_prefix = {}
         if self.clip_vision_prefix is not None:
             replace_prefix[""] = self.clip_vision_prefix
         return utils.state_dict_prefix_replace(state_dict, replace_prefix)
 
-    def process_unet_state_dict_for_saving(self, state_dict):
+    def process_unet_state_dict_for_saving(self, state_dict: StateDict):
         replace_prefix = {"": "model.diffusion_model."}
         return utils.state_dict_prefix_replace(state_dict, replace_prefix)
 
-    def process_vae_state_dict_for_saving(self, state_dict):
+    def process_vae_state_dict_for_saving(self, state_dict: StateDict):
         replace_prefix = {"": self.vae_key_prefix[0]}
         return utils.state_dict_prefix_replace(state_dict, replace_prefix)
 
-    def set_inference_dtype(self, dtype, manual_cast_dtype):
+    def set_inference_dtype(self, dtype: torch.dtype, manual_cast_dtype: Optional[torch.dtype] = None):
         self.unet_config['dtype'] = dtype
         self.manual_cast_dtype = manual_cast_dtype

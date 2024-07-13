@@ -1,9 +1,11 @@
+from typing import Any, Dict, Optional
 import torch
 import copy
 import inspect
 import logging
 import uuid
 
+from comfy.model_base import BaseModel
 import comfy.utils
 import comfy.model_management
 from comfy.types import UnetWrapperFunction
@@ -64,14 +66,14 @@ def set_model_options_pre_cfg_function(model_options, pre_cfg_function, disable_
     return model_options
 
 class ModelPatcher:
-    def __init__(self, model, load_device, offload_device, size=0, current_device=None, weight_inplace_update=False):
+    def __init__(self, model: BaseModel, load_device: torch.device, offload_device: torch.device, size:int=0, current_device: Optional[torch.device]=None, weight_inplace_update:bool=False):
         self.size = size
         self.model = model
         self.patches = {}
         self.backup = {}
         self.object_patches = {}
         self.object_patches_backup = {}
-        self.model_options = {"transformer_options":{}}
+        self.model_options: Dict[str, Any] = {"transformer_options":{}}
         self.model_size()
         self.load_device = load_device
         self.offload_device = offload_device
@@ -145,7 +147,7 @@ class ModelPatcher:
     def set_model_denoise_mask_function(self, denoise_mask_function):
         self.model_options["denoise_mask_function"] = denoise_mask_function
 
-    def set_model_patch(self, patch, name):
+    def set_model_patch(self, patch, name: str):
         to = self.model_options["transformer_options"]
         if "patches" not in to:
             to["patches"] = {}
@@ -181,10 +183,10 @@ class ModelPatcher:
     def set_model_output_block_patch(self, patch):
         self.set_model_patch(patch, "output_block_patch")
 
-    def add_object_patch(self, name, obj):
+    def add_object_patch(self, name: str, obj):
         self.object_patches[name] = obj
 
-    def get_model_object(self, name):
+    def get_model_object(self, name: str):
         if name in self.object_patches:
             return self.object_patches[name]
         else:
@@ -193,7 +195,7 @@ class ModelPatcher:
             else:
                 return comfy.utils.get_attr(self.model, name)
 
-    def model_patches_to(self, device):
+    def model_patches_to(self, device: torch.device):
         to = self.model_options["transformer_options"]
         if "patches" in to:
             patches = to["patches"]

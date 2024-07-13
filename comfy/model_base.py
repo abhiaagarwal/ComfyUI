@@ -1,3 +1,4 @@
+from typing import Optional
 import torch
 import logging
 from comfy.ldm.modules.diffusionmodules.openaimodel import UNetModel, Timestep
@@ -12,6 +13,8 @@ import comfy.model_management
 import comfy.conds
 import comfy.ops
 from enum import Enum
+
+from comfy.supported_models_base import BASE
 from . import utils
 import comfy.latent_formats
 import math
@@ -59,12 +62,12 @@ def model_sampling(model_config, model_type):
 
 
 class BaseModel(torch.nn.Module):
-    def __init__(self, model_config, model_type=ModelType.EPS, device=None, unet_model=UNetModel):
+    def __init__(self, model_config: BASE, model_type:ModelType=ModelType.EPS, device:Optional[torch.device]=None, unet_model=UNetModel):
         super().__init__()
 
         unet_config = model_config.unet_config
         self.latent_format = model_config.latent_format
-        self.model_config = model_config
+        self.model_config: BASE = model_config
         self.manual_cast_dtype = model_config.manual_cast_dtype
 
         if not unet_config.get("disable_unet_model_creation", False):

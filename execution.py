@@ -5,14 +5,16 @@ import threading
 import heapq
 import traceback
 import inspect
-from typing import List, Literal, NamedTuple, Optional
+from typing import Any, Dict, List, Literal, NamedTuple, Optional
 
 import torch
+from comfy.api.typed_node import OldNode
 import nodes
 
 import comfy.model_management
+from server import PromptServer
 
-def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_data={}):
+def get_input_data(inputs, class_def: OldNode, unique_id, outputs={}, prompt={}, extra_data={}):
     valid_inputs = class_def.INPUT_TYPES()
     input_data_all = {}
     for x in inputs:
@@ -40,7 +42,7 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_da
                 input_data_all[x] = [unique_id]
     return input_data_all
 
-def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
+def map_node_over_list(obj: OldNode, input_data_all: Dict[str, Any], func: str, allow_interrupt:bool=False):
     # check if node wants the lists
     input_is_list = False
     if hasattr(obj, "INPUT_IS_LIST"):
@@ -74,7 +76,7 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
             results.append(getattr(obj, func)(**slice_dict(input_data_all, i)))
     return results
 
-def get_output_data(obj, input_data_all):
+def get_output_data(obj: OldNode, input_data_all):
     
     results = []
     uis = []
@@ -116,7 +118,7 @@ def format_value(x):
     else:
         return str(x)
 
-def recursive_execute(server, prompt, outputs, current_item, extra_data, executed, prompt_id, outputs_ui, object_storage):
+def recursive_execute(server: PromptServer, prompt, outputs, current_item, extra_data, executed, prompt_id, outputs_ui, object_storage):
     unique_id = current_item
     inputs = prompt[unique_id]['inputs']
     class_type = prompt[unique_id]['class_type']

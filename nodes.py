@@ -1,3 +1,4 @@
+from typing import Dict
 import torch
 
 import os
@@ -15,6 +16,8 @@ from PIL.PngImagePlugin import PngInfo
 
 import numpy as np
 import safetensors.torch
+
+from comfy.api.typed_node import ComfyNode, CLIP, STRING, CONDITIONING, OldNode
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
 
@@ -58,6 +61,16 @@ class CLIPTextEncode:
         output = clip.encode_from_tokens(tokens, return_pooled=True, return_dict=True)
         cond = output.pop("cond")
         return ([[cond, output]], )
+
+class CLIPTextEncode2(ComfyNode):
+    def category(self):
+        return "conditioning"
+
+    def encode(self, clip: CLIP, text: STRING) -> CONDITIONING:
+        tokens = clip.tokenize(text)
+        output = clip.encode_from_tokens(tokens, return_pooled=True, return_dict=True)
+        cond = output.pop("cond")
+        return [[cond, output]]
 
 class ConditioningCombine:
     @classmethod
@@ -1759,7 +1772,7 @@ class ImagePadForOutpaint:
         return (new_image, mask)
 
 
-NODE_CLASS_MAPPINGS = {
+NODE_CLASS_MAPPINGS: Dict[str, OldNode] = {
     "KSampler": KSampler,
     "CheckpointLoaderSimple": CheckpointLoaderSimple,
     "CLIPTextEncode": CLIPTextEncode,
