@@ -1,3 +1,7 @@
+from typing import Any, Dict, Optional, Tuple
+from comfy.caching import BasicCache
+from comfy.nodes.node_info import NodeInfo
+from comfy.types import ComfyNodeV1, Prompt, PromptInput
 import nodes
 
 from comfy.graph_utils import is_link
@@ -12,38 +16,38 @@ class NodeNotFoundError(Exception):
     pass
 
 class DynamicPrompt:
-    def __init__(self, original_prompt):
+    def __init__(self, original_prompt: Prompt):
         # The original prompt provided by the user
         self.original_prompt = original_prompt
         # Any extra pieces of the graph created during execution
-        self.ephemeral_prompt = {}
-        self.ephemeral_parents = {}
-        self.ephemeral_display = {}
+        self.ephemeral_prompt: Prompt = {}
+        self.ephemeral_parents: Dict[str, str] = {}
+        self.ephemeral_display: Dict[str, str] = {}
 
-    def get_node(self, node_id):
+    def get_node(self, node_id: str) -> PromptInput:
         if node_id in self.ephemeral_prompt:
             return self.ephemeral_prompt[node_id]
         if node_id in self.original_prompt:
             return self.original_prompt[node_id]
         raise NodeNotFoundError(f"Node {node_id} not found")
 
-    def has_node(self, node_id):
+    def has_node(self, node_id: str) -> bool:
         return node_id in self.original_prompt or node_id in self.ephemeral_prompt
 
-    def add_ephemeral_node(self, node_id, node_info, parent_id, display_id):
+    def add_ephemeral_node(self, node_id: str, node_info: PromptInput, parent_id: str, display_id: str):
         self.ephemeral_prompt[node_id] = node_info
         self.ephemeral_parents[node_id] = parent_id
         self.ephemeral_display[node_id] = display_id
 
-    def get_real_node_id(self, node_id):
+    def get_real_node_id(self, node_id: str) -> str:
         while node_id in self.ephemeral_parents:
             node_id = self.ephemeral_parents[node_id]
         return node_id
 
-    def get_parent_node_id(self, node_id):
+    def get_parent_node_id(self, node_id: str) -> Optional[str]:
         return self.ephemeral_parents.get(node_id, None)
 
-    def get_display_node_id(self, node_id):
+    def get_display_node_id(self, node_id: str) -> str:
         while node_id in self.ephemeral_display:
             node_id = self.ephemeral_display[node_id]
         return node_id
@@ -51,10 +55,10 @@ class DynamicPrompt:
     def all_node_ids(self):
         return set(self.original_prompt.keys()).union(set(self.ephemeral_prompt.keys()))
 
-    def get_original_prompt(self):
+    def get_original_prompt(self) -> Prompt:
         return self.original_prompt
 
-def get_input_info(class_def, input_name):
+def get_input_info(class_def: type[ComfyNodeV1], input_name: str):
     valid_inputs = class_def.INPUT_TYPES()
     input_info = None
     input_category = None
@@ -68,27 +72,27 @@ def get_input_info(class_def, input_name):
         input_category = "hidden"
         input_info = valid_inputs["hidden"][input_name]
     if input_info is None:
-        return None, None, None
+        return (None, None, None)
     input_type = input_info[0]
     if len(input_info) > 1:
         extra_info = input_info[1]
     else:
         extra_info = {}
-    return input_type, input_category, extra_info
+    return (input_type, input_category, extra_info)
 
 class TopologicalSort:
-    def __init__(self, dynprompt):
+    def __init__(self, dynprompt: DynamicPrompt):
         self.dynprompt = dynprompt
-        self.pendingNodes = {}
-        self.blockCount = {} # Number of nodes this node is directly blocked by
+        self.pendingNodes: Dict[str, bool] = {}
+        self.blockCount: Dict[str, int] = {} # Number of nodes this node is directly blocked by
         self.blocking = {} # Which nodes are blocked by this node
 
-    def get_input_info(self, unique_id, input_name):
+    def get_input_info(self, unique_id: str, input_name: str):
         class_type = self.dynprompt.get_node(unique_id)["class_type"]
         class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
         return get_input_info(class_def, input_name)
 
-    def make_input_strong_link(self, to_node_id, to_input):
+    def make_input_strong_link(self, to_node_id: str, to_input):
         inputs = self.dynprompt.get_node(to_node_id)["inputs"]
         if to_input not in inputs:
             raise NodeInputError(f"Node {to_node_id} says it needs input {to_input}, but there is no input to that node at all")
@@ -98,14 +102,14 @@ class TopologicalSort:
         from_node_id, from_socket = value
         self.add_strong_link(from_node_id, from_socket, to_node_id)
 
-    def add_strong_link(self, from_node_id, from_socket, to_node_id):
+    def add_strong_link(self, from_node_id: str, from_socket, to_node_id):
         self.add_node(from_node_id)
         if to_node_id not in self.blocking[from_node_id]:
             self.blocking[from_node_id][to_node_id] = {}
             self.blockCount[to_node_id] += 1
         self.blocking[from_node_id][to_node_id][from_socket] = True
 
-    def add_node(self, unique_id, include_lazy=False, subgraph_nodes=None):
+    def add_node(self, unique_id:str, include_lazy:bool=False, subgraph_nodes=None):
         if unique_id in self.pendingNodes:
             return
         self.pendingNodes[unique_id] = True
@@ -119,7 +123,7 @@ class TopologicalSort:
                 from_node_id, from_socket = value
                 if subgraph_nodes is not None and from_node_id not in subgraph_nodes:
                     continue
-                input_type, input_category, input_info = self.get_input_info(unique_id, input_name)
+                _, _, input_info = self.get_input_info(unique_id, input_name)
                 is_lazy = input_info is not None and "lazy" in input_info and input_info["lazy"]
                 if include_lazy or not is_lazy:
                     self.add_strong_link(from_node_id, from_socket, unique_id)
@@ -127,7 +131,7 @@ class TopologicalSort:
     def get_ready_nodes(self):
         return [node_id for node_id in self.pendingNodes if self.blockCount[node_id] == 0]
 
-    def pop_node(self, unique_id):
+    def pop_node(self, unique_id: str):
         del self.pendingNodes[unique_id]
         for blocked_node_id in self.blocking[unique_id]:
             self.blockCount[blocked_node_id] -= 1
@@ -139,13 +143,13 @@ class TopologicalSort:
 # ExecutionList implements a topological dissolve of the graph. After a node is staged for execution,
 # it can still be returned to the graph after having further dependencies added.
 class ExecutionList(TopologicalSort):
-    def __init__(self, dynprompt, output_cache):
+    def __init__(self, dynprompt: DynamicPrompt, output_cache):
         super().__init__(dynprompt)
         self.output_cache = output_cache
         self.staged_node_id = None
 
     def add_strong_link(self, from_node_id, from_socket, to_node_id):
-        if self.output_cache.get(from_node_id) is not None:
+        if self.output_cache.get(from_node_id, None) is not None:
             # Nothing to do
             return
         super().add_strong_link(from_node_id, from_socket, to_node_id)
@@ -230,4 +234,3 @@ class ExecutionList(TopologicalSort):
 class ExecutionBlocker:
     def __init__(self, message):
         self.message = message
-

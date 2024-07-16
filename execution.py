@@ -6,7 +6,7 @@ import heapq
 import traceback
 from enum import Enum
 import inspect
-from typing import List, Literal, NamedTuple, Optional
+from typing import Any, Dict, List, Literal, NamedTuple, Optional
 
 import torch
 import nodes
@@ -17,6 +17,8 @@ from comfy.graph import get_input_info, ExecutionList, DynamicPrompt, ExecutionB
 from comfy.graph_utils import is_link, GraphBuilder
 from comfy.caching import HierarchicalCache, LRUCache, CacheKeySetInputSignature, CacheKeySetID
 from comfy.cli_args import args
+from comfy.types import ComfyNodeV1, InputParamDefinition, Prompt
+from server import PromptServer
 
 class ExecutionResult(Enum):
     SUCCESS = 0
@@ -27,7 +29,7 @@ class DuplicateNodeError(Exception):
     pass
 
 class IsChangedCache:
-    def __init__(self, dynprompt, outputs_cache):
+    def __init__(self, dynprompt: DynamicPrompt, outputs_cache):
         self.dynprompt = dynprompt
         self.outputs_cache = outputs_cache
         self.is_changed = {}
@@ -85,12 +87,11 @@ class CacheSet:
         }
         return result
 
-def get_input_data(inputs, class_def, unique_id, outputs=None, dynprompt=None, extra_data={}):
+def get_input_data(inputs: Dict[str, Any], class_def: type[ComfyNodeV1], unique_id: str, outputs=None, dynprompt: Optional[DynamicPrompt]=None, extra_data={}):
     valid_inputs = class_def.INPUT_TYPES()
     input_data_all = {}
     missing_keys = {}
-    for x in inputs:
-        input_data = inputs[x]
+    for x, input_data in inputs.keys():
         input_type, input_category, input_info = get_input_info(class_def, x)
         def mark_missing():
             missing_keys[x] = True
@@ -126,7 +127,7 @@ def get_input_data(inputs, class_def, unique_id, outputs=None, dynprompt=None, e
                 input_data_all[x] = [unique_id]
     return input_data_all, missing_keys
 
-def map_node_over_list(obj, input_data_all, func, allow_interrupt=False, execution_block_cb=None, pre_execute_cb=None):
+def map_node_over_list(obj: type[ComfyNodeV1], input_data_all, func, allow_interrupt=False, execution_block_cb=None, pre_execute_cb=None):
     # check if node wants the lists
     input_is_list = getattr(obj, "INPUT_IS_LIST", False)
 
@@ -165,7 +166,7 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False, executi
             process_inputs(input_dict, i)
     return results
 
-def merge_result_data(results, obj):
+def merge_result_data(results, obj: type[ComfyNodeV1]):
     # check which outputs need concatenating
     output = []
     output_is_list = [False] * len(results[0])
@@ -180,7 +181,7 @@ def merge_result_data(results, obj):
             output.append([o[i] for o in results])
     return output
 
-def get_output_data(obj, input_data_all, execution_block_cb=None, pre_execute_cb=None):
+def get_output_data(obj: type[ComfyNodeV1], input_data_all, execution_block_cb=None, pre_execute_cb=None):
     
     results = []
     uis = []
@@ -231,7 +232,7 @@ def format_value(x):
     else:
         return str(x)
 
-def execute(server, dynprompt, caches, current_item, extra_data, executed, prompt_id, execution_list, pending_subgraph_results):
+def execute(server: PromptServer, dynprompt: DynamicPrompt, caches: CacheSet, current_item: str, extra_data, executed, prompt_id, execution_list, pending_subgraph_results):
     unique_id = current_item
     real_node_id = dynprompt.get_real_node_id(unique_id)
     display_node_id = dynprompt.get_display_node_id(unique_id)
@@ -310,7 +311,7 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
                     return block
             def pre_execute_cb(call_index):
                 GraphBuilder.set_default_prefix(unique_id, call_index, 0)
-            output_data, output_ui, has_subgraph = get_output_data(obj, input_data_all, execution_block_cb=execution_block_cb, pre_execute_cb=pre_execute_cb)
+            output_data, output_ui, has_subgraph = get_output_data(type(obj), input_data_all, execution_block_cb=execution_block_cb, pre_execute_cb=pre_execute_cb)
         if len(output_ui) > 0:
             caches.ui.set(unique_id, {
                 "meta": {
@@ -502,7 +503,7 @@ class PromptExecutor:
 
 
 
-def validate_inputs(prompt, item, validated):
+def validate_inputs(prompt: Prompt, item: str, validated: Dict[str, Prompt]) -> Prompt:
     unique_id = item
     if unique_id in validated:
         return validated[unique_id]
@@ -726,7 +727,7 @@ def full_type_name(klass):
         return klass.__qualname__
     return module + '.' + klass.__qualname__
 
-def validate_prompt(prompt):
+def validate_prompt(prompt: Prompt):
     outputs = set()
     for x in prompt:
         if 'class_type' not in prompt[x]:

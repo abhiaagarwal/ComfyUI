@@ -1,3 +1,4 @@
+from typing import Dict
 import torch
 
 import os
@@ -15,6 +16,8 @@ from PIL.PngImagePlugin import PngInfo
 
 import numpy as np
 import safetensors.torch
+
+from comfy.types import ComfyNodeV1
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
 
@@ -1757,7 +1760,7 @@ class ImagePadForOutpaint:
         return (new_image, mask)
 
 
-NODE_CLASS_MAPPINGS = {
+NODE_CLASS_MAPPINGS: Dict[str, type[ComfyNodeV1]] = {
     "KSampler": KSampler,
     "CheckpointLoaderSimple": CheckpointLoaderSimple,
     "CLIPTextEncode": CLIPTextEncode,

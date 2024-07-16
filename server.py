@@ -1,8 +1,12 @@
+from __future__ import annotations
+
 import os
 import sys
 import asyncio
 import traceback
 
+from comfy.nodes.node_info import NodeInfo
+from comfy.types import ComfyNodeV1
 import nodes
 import folder_paths
 import execution
@@ -387,25 +391,21 @@ class PromptServer():
         async def get_prompt(request):
             return web.json_response(self.get_queue_info())
 
-        def node_info(node_class):
-            obj_class = nodes.NODE_CLASS_MAPPINGS[node_class]
-            info = {}
-            info['input'] = obj_class.INPUT_TYPES()
-            info['input_order'] = {key: list(value.keys()) for (key, value) in obj_class.INPUT_TYPES().items()}
-            info['output'] = obj_class.RETURN_TYPES
-            info['output_is_list'] = obj_class.OUTPUT_IS_LIST if hasattr(obj_class, 'OUTPUT_IS_LIST') else [False] * len(obj_class.RETURN_TYPES)
-            info['output_name'] = obj_class.RETURN_NAMES if hasattr(obj_class, 'RETURN_NAMES') else info['output']
-            info['name'] = node_class
-            info['display_name'] = nodes.NODE_DISPLAY_NAME_MAPPINGS[node_class] if node_class in nodes.NODE_DISPLAY_NAME_MAPPINGS.keys() else node_class
-            info['description'] = obj_class.DESCRIPTION if hasattr(obj_class,'DESCRIPTION') else ''
-            info['category'] = 'sd'
-            if hasattr(obj_class, 'OUTPUT_NODE') and obj_class.OUTPUT_NODE == True:
-                info['output_node'] = True
-            else:
-                info['output_node'] = False
-
-            if hasattr(obj_class, 'CATEGORY'):
-                info['category'] = obj_class.CATEGORY
+        def node_info(node_class: str) -> NodeInfo:
+            obj_class: type[ComfyNodeV1] = nodes.NODE_CLASS_MAPPINGS[node_class]
+            output = obj_class.RETURN_TYPES,
+            return NodeInfo(
+                input=obj_class.INPUT_TYPES(),
+                input_order={key: list(value.keys()) for (key, value) in obj_class.INPUT_TYPES().items()},
+                output=output,
+                output_is_list=obj_class.OUTPUT_IS_LIST if hasattr(obj_class, 'OUTPUT_IS_LIST') else (False,) * len(obj_class.RETURN_TYPES),
+                output_name=obj_class.RETURN_NAMES if hasattr(obj_class, 'RETURN_NAMES') else output,
+                name=node_class,
+                display_name=nodes.NODE_DISPLAY_NAME_MAPPINGS[node_class] if node_class in nodes.NODE_DISPLAY_NAME_MAPPINGS.keys() else node_class,
+                description=obj_class.DESCRIPTION if hasattr(obj_class,'DESCRIPTION') else '',
+                category=obj_class.CATEGORY if hasattr(obj_class, 'CATEGORY') else 'sd',
+                output_node=hasattr(obj_class, 'OUTPUT_NODE') and obj_class.OUTPUT_NODE == True
+            )
             return info
 
         @routes.get("/object_info")
